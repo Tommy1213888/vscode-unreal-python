@@ -1,3 +1,6 @@
+> [!WARNING]
+> This repository has been moved to [codeberg.org/nils-soderman/vscode-unreal-python](https://codeberg.org/nils-soderman/vscode-unreal-python)
+
 # Unreal Engine Python (Visual Studio Code)
 
 Editor features to assist when writing Python code for Unreal Engine.
