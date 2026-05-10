@@ -44,7 +44,7 @@ interface DetailsPageState {
 
 
 class DetailsPage extends Component<DetailsPageProps, DetailsPageState> {
-    state = { data: undefined }
+    state: DetailsPageState = { data: undefined }
 
     objectName: string = "";
 
@@ -76,7 +76,7 @@ class DetailsPage extends Component<DetailsPageProps, DetailsPageState> {
         if (!focusPropertyName && !this.state.data?.pageData.is_class) {
             focusPropertyName = this.objectName;
         }
-        
+
         return (
             <Fragment>
                 {
@@ -85,7 +85,7 @@ class DetailsPage extends Component<DetailsPageProps, DetailsPageState> {
                             return null;
 
                         // Check if DropDownArea needs to be forced open (if the focused property is in this type)
-                        let bForceOpenState: boolean = undefined;
+                        let bForceOpenState: boolean | undefined = undefined;
                         if (focusPropertyName) {
                             if (data[type].find((member: any) => member.name === focusPropertyName))
                                 bForceOpenState = true;
@@ -96,7 +96,7 @@ class DetailsPage extends Component<DetailsPageProps, DetailsPageState> {
                                 {
                                     data[type].map((member: any, index: number) => {
                                         return (
-                                            <div key={index} className="doc-details-member" id={(focusPropertyName === member.name ? "doc-details-highlight" : null)}>
+                                            <div key={index} className="doc-details-member" id={(focusPropertyName === member.name ? "doc-details-highlight" : undefined)}>
                                                 <h4>{member.name} <span className="doc-details-name-hint">{member.name_hints}</span></h4>
                                                 <div className="doc-details-doc">
                                                     <ReactMarkdown>{member.doc}</ReactMarkdown>

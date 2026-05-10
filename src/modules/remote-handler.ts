@@ -3,6 +3,7 @@
  */
 
 import * as vscode from 'vscode';
+import { execSync } from 'child_process';
 
 import { RemoteExecution, RemoteExecutionConfig, RemoteExecutionNode, ECommandOutputType, EExecMode, IRemoteExecutionMessageCommandOutputData } from "unreal-remote-execution";
 
@@ -10,7 +11,7 @@ import * as extensionWiki from "./extension-wiki";
 import * as utils from "./utils";
 import * as logger from "./logger";
 
-let gIsInitializatingConnection = false;
+let gConnectionPromise: Promise<RemoteExecution | null> | null = null;
 let gCachedRemoteExecution: RemoteExecution | null = null;
 let gStatusBarItem: vscode.StatusBarItem | null = null;
 
@@ -36,13 +37,30 @@ export function removeStatusBarItem() {
 
 
 /**
+ * Check if a multicast route exists for the given address on Linux
+ */
+function hasMulticastRoute(multicastAddress: string): boolean {
+    try {
+        const output = execSync(`ip route show ${multicastAddress}`, { encoding: 'utf8' });
+        return output.trim().length > 0;
+    } catch {
+        return false;
+    }
+}
+
+
+/**
  * Get a `RemoteExecutionConfig` based on the extension user settings
  */
 function getRemoteConfig() {
     const extensionConfig = utils.getExtensionConfig();
 
     const multicastTTL: number | undefined = extensionConfig.get("remote.multicastTTL");
-    const multicastBindAddress: string | undefined = extensionConfig.get("remote.multicastBindAddress");
+
+    let multicastBindAddress: string | undefined = extensionConfig.get("remote.multicastBindAddress");
+    if (multicastBindAddress === "default") {
+        multicastBindAddress = process.platform === "linux" ? "0.0.0.0" : "127.0.0.1";
+    }
 
     let multicastGroupEndpoint: [string, number] | undefined = undefined;
     const multicastGroupEndpointStr: string | undefined = extensionConfig.get("remote.multicastGroupEndpoint");
@@ -143,24 +161,32 @@ export async function getConnectedRemoteExecutionInstance(): Promise<RemoteExecu
     if (!remoteExecution)
         return null;
 
-    if (!remoteExecution.hasCommandConnection()) {
-        const config = getRemoteConfig();
+    if (remoteExecution.hasCommandConnection())
+        return remoteExecution;
 
-        if (gIsInitializatingConnection) {
-            return new Promise((resolve) => {
-                const interval = setInterval(() => {
-                    if (!gIsInitializatingConnection) {
-                        clearInterval(interval);
-                        resolve(getConnectedRemoteExecutionInstance());
-                    }
-                }, 1000);
-            });
-        }
-        gIsInitializatingConnection = true;
+    if (!gConnectionPromise) {
+        gConnectionPromise = (async () => {
+            const config = getRemoteConfig();
 
-        if (await ensureCommandPortAvaliable(config)) {
+            if (!await ensureCommandPortAvaliable(config))
+                return null;
+
             const extensionConfig = utils.getExtensionConfig();
             const timeout: number = extensionConfig.get("remote.timeout") ?? 3000;
+
+            if (process.platform === "linux") {
+                const multicastAddr = config.multicastGroupEndpoint[0];
+                if (!hasMulticastRoute(multicastAddr)) {
+                    vscode.window.showErrorMessage(
+                        `Multicast route not configured. Run: \`sudo ip route add ${multicastAddr} dev lo\``,
+                        "Copy Command"
+                    ).then(item => {
+                        if (item === "Copy Command")
+                            vscode.env.clipboard.writeText(`sudo ip route add ${multicastAddr} dev lo`);
+                    });
+                    return null;
+                }
+            }
 
             logger.info(`Connecting with a timeout of ${timeout}ms.`);
 
@@ -179,23 +205,22 @@ export async function getConnectedRemoteExecutionInstance(): Promise<RemoteExecu
                         extensionWiki.openPageInBrowser(extensionWiki.FPages.failedToConnect);
                 });
 
-                closeRemoteConnection();
-                gIsInitializatingConnection = false;
                 return null;
             }
 
-            await connectToRemoteInstance(remoteExecution, node, timeout);
-            gIsInitializatingConnection = false;
-        }
-        else {
-            closeRemoteConnection();
-            gIsInitializatingConnection = false;
-            return null;
-        }
-
+            const connected = await connectToRemoteInstance(remoteExecution, node, timeout);
+            return connected ? remoteExecution : null;
+        })().then(result => {
+            if (result === null) {
+                closeRemoteConnection();
+            }
+            return result;
+        }).finally(() => {
+            gConnectionPromise = null;
+        });
     }
 
-    return remoteExecution;
+    return gConnectionPromise;
 }
 
 
@@ -230,8 +255,14 @@ async function onRemoteInstanceCreated(node: RemoteExecutionNode) {
         statusBarItem.show();
     }
 
-    if (!await defineVscEvalFunction())
+    // Append the extension's site-packages folder to the python path in Unreal
+    const sitePackagesPath = vscode.Uri.joinPath(utils.getExtensionUri(), "site-packages");
+    const setupCommand = `import sys;sys.path.append(r'${sitePackagesPath.fsPath}');import json;import vscode_unreal;`;
+    let response = await runCommand(setupCommand, false);
+    if (!response?.success) {
+        logger.error("Failed to append site-packages to python path in Unreal Engine");
         return;
+    }
 
     // Check if we should add any workspace folders to the python path
     const workspaceFolders = vscode.workspace.workspaceFolders;
@@ -245,8 +276,7 @@ async function onRemoteInstanceCreated(node: RemoteExecutionNode) {
         }
 
         if (foldersToAddToPath.length > 0) {
-            await evaluateFunction(
-                utils.FPythonScriptFiles.getUri(utils.FPythonScriptFiles.addSysPath), "add_paths",
+            await evaluateFunction("add_sys_path", "add_paths",
                 {
                     paths: foldersToAddToPath
                 }
@@ -269,29 +299,6 @@ async function onRemoteConnectionClosed() {
 
 
 /**
- * Define the vsc_eval function used in `evaluateFunction`
- */
-export async function defineVscEvalFunction(): Promise<boolean> {
-    const filepath = utils.FPythonScriptFiles.getUri(utils.FPythonScriptFiles.eval);
-    const vsc_eval_response = await executeFile(filepath);
-    if (!vsc_eval_response) {
-        return false;
-    }
-
-    for (const output of vsc_eval_response.output) {
-        logger.info(output.output.trimEnd());
-    }
-
-    if (!vsc_eval_response.success) {
-        logger.showError("Extension ran into an error", new Error(vsc_eval_response.result));
-        return false;
-    }
-
-    return true;
-}
-
-
-/**
  * Send a command to the remote connection
  * @param command The python code as a string
  */
@@ -308,29 +315,10 @@ export async function runCommand(command: string, bEval = false) {
 }
 
 
-/**
- * Execute a file in Unreal through the remote exection
- * @param uri Absolute filepath to the python file to execute
- * @param variables Optional dict with global variables to set before executing the file
- */
-export function executeFile(uri: vscode.Uri, globals: any = {}) {
-    if (!globals.hasOwnProperty('__file__')) {
-        globals["__file__"] = uri.fsPath;
-    }
-
-    let globalsStr = JSON.stringify(globals);
-    globalsStr = globalsStr.replace(/\\/g, "\\\\");
-
-    // Put together one line of code for settings the global variables, then opening, reading & executing the given filepath
-    const command = `import json;globals().update(json.loads('${globalsStr}'));f=open(r'${uri.fsPath}','r');exec(f.read());f.close()`;
-    return runCommand(command);
-}
-
-
-export async function evaluateFunction(uri: vscode.Uri, functionName: string, kwargs: any = {}, useGlobals = false, logOutput = true) {
-    let command = `vsc_eval(r'${uri.fsPath}', '${functionName}', ${useGlobals ? "True" : "False"}`;
+export async function evaluateFunction(moduleName: string, functionName: string, kwargs: any = {}, logOutput = true) {
+    let command = `vscode_unreal.${moduleName}.${functionName}(`;
     if (Object.keys(kwargs).length > 0) {
-        command += `, **json.loads(r'${JSON.stringify(kwargs)}')`;
+        command += `**json.loads(r'${JSON.stringify(kwargs)}')`;
     }
     command += `)`;
 

@@ -41,36 +41,48 @@ suite('Setup Code Completion', () => {
         assert.ok(await codeCompletion.getUnrealStubDirectory());
     });
 
-    const testAddPythonAnalysisPath = async (dir: vscode.Uri) => {
-        assert.strictEqual(await codeCompletion.validateStubAndAddToPath(dir), false);
+    test('Missing Stub File', async function () {
+        await codeCompletion.validateStubAndAddToPath(tmpDir);
 
+        assert.strictEqual(pythonConfig.globalValue[PYTHON_CONFIG_KEY].length, 0);
+        assert.strictEqual(pythonConfig.workspaceValue[PYTHON_CONFIG_KEY].length, 0);
+        assert.strictEqual(pythonConfig.workspaceFolderValue[PYTHON_CONFIG_KEY].length, 0);
+    });
+
+    const createUnrealStub = async (dir: vscode.Uri) => {
         // Create the unreal.py file
         const stubFilepath = vscode.Uri.joinPath(dir, codeCompletion.STUB_FILE_NAME);
         await vscode.workspace.fs.writeFile(stubFilepath, new Uint8Array());
-
-        assert.strictEqual(await codeCompletion.validateStubAndAddToPath(dir), "add");
-        assert.strictEqual(await codeCompletion.validateStubAndAddToPath(dir), "exists");
     };
 
     test('Add Path - Global', async function () {
-        await testAddPythonAnalysisPath(tmpDir);
+        await createUnrealStub(tmpDir);
+        await codeCompletion.validateStubAndAddToPath(tmpDir);
 
         assert.strictEqual(pythonConfig.globalValue[PYTHON_CONFIG_KEY].length, 1);
+        assert.strictEqual(pythonConfig.workspaceValue[PYTHON_CONFIG_KEY].length, 0);
+        assert.strictEqual(pythonConfig.workspaceFolderValue[PYTHON_CONFIG_KEY].length, 0);
     });
 
     test('Add Path - Workspace', async function () {
         pythonConfig.workspaceValue[PYTHON_CONFIG_KEY] = ['helloWorld'];
 
-        await testAddPythonAnalysisPath(tmpDir);
+        await createUnrealStub(tmpDir);
+        await codeCompletion.validateStubAndAddToPath(tmpDir);
 
+        assert.strictEqual(pythonConfig.globalValue[PYTHON_CONFIG_KEY].length, 0);
         assert.strictEqual(pythonConfig.workspaceValue[PYTHON_CONFIG_KEY].length, 2);
+        assert.strictEqual(pythonConfig.workspaceFolderValue[PYTHON_CONFIG_KEY].length, 0);
     });
 
     test('Add Path - Workspace Folder', async function () {
         pythonConfig.workspaceFolderValue[PYTHON_CONFIG_KEY] = ['helloWorld'];
 
-        await testAddPythonAnalysisPath(tmpDir);
+        await createUnrealStub(tmpDir);
+        await codeCompletion.validateStubAndAddToPath(tmpDir);
 
+        assert.strictEqual(pythonConfig.globalValue[PYTHON_CONFIG_KEY].length, 0);
+        assert.strictEqual(pythonConfig.workspaceValue[PYTHON_CONFIG_KEY].length, 0);
         assert.strictEqual(pythonConfig.workspaceFolderValue[PYTHON_CONFIG_KEY].length, 2);
     });
 });

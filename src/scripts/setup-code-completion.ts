@@ -13,8 +13,6 @@ import * as utils from '../modules/utils';
 
 export const STUB_FILE_NAME = "unreal.py";
 
-const CONFIG_PYTHON = "python";
-const CONFIG_KEY_EXTRA_PATHS = "analysis.extraPaths";
 
 interface ISettingsInfo {
     niceName: string;
@@ -30,14 +28,20 @@ interface IInspectionSettings {
     defaultValue?: string[];
 }
 
+interface ILanguageServerExtInfo {
+    extensionId: string;
+    extraPathsConfigKey?: string;
+    extensionName: string;
+    publisherName: string;
+}
+
 
 /**
  * Get the path to the directory where the 'unreal.py' stubfile is generated,
  * Based on the currently connected Unreal Engine project.
  */
 export async function getUnrealStubDirectory(): Promise<vscode.Uri | null> {
-    const getPythonPathScript = utils.FPythonScriptFiles.getUri(utils.FPythonScriptFiles.getStubPath);
-    const response = await remoteHandler.evaluateFunction(getPythonPathScript, "get_python_stub_dir");
+    const response = await remoteHandler.evaluateFunction("paths", "get_python_stub_dir");
 
     if (response && response.success) {
         // The result string contains quote characters, strip those
@@ -48,31 +52,60 @@ export async function getUnrealStubDirectory(): Promise<vscode.Uri | null> {
     return null;
 }
 
-
 /**
- * Check if the 'ms-python.vscode-pylance' extension is installed, and if not prompt the user to install it.
- * @returns 
+ * Look for popular Python language server extensions and return the first one found, or null if none is found.
  */
-function validatePylanceExtension(): boolean {
-    const PYLANCE_EXTENSION_ID = "ms-python.vscode-pylance";
-    const PYLANCE_EXTENSION_URL = "https://marketplace.visualstudio.com/items?itemName=ms-python.vscode-pylance";
-    const SHOW_PYLANCE = "Show Pylance";
+function getLanguageServerExtension(): ILanguageServerExtInfo | null {
+    const extensions_info: ILanguageServerExtInfo[] = [
+        {
+            extensionId: "astral-sh.ty",
+            extensionName: "ty",
+            publisherName: "Astral"
+        },
+        {
+            extensionId: "ms-python.vscode-pylance",
+            extraPathsConfigKey: "python.analysis.extraPaths",
+            extensionName: "Pylance",
+            publisherName: "Microsoft"
+        },
+        {
+            extensionId: "detachhead.basedpyright",
+            extraPathsConfigKey: "basedpyright.analysis.extraPaths",
+            extensionName: "BasedPyright",
+            publisherName: "DetachHead"
+        }
+    ];
 
-    // Pylance is the extension that provides the 'python.analysis.extraPaths' setting
-    const pylanceExtension = vscode.extensions.getExtension(PYLANCE_EXTENSION_ID);
-    if (!pylanceExtension) {
-        vscode.window.showErrorMessage(
-            `[${PYLANCE_EXTENSION_ID}](${PYLANCE_EXTENSION_URL}) not installed. Could not update the '${CONFIG_PYTHON}.${CONFIG_KEY_EXTRA_PATHS}' setting.`,
-            SHOW_PYLANCE
-        ).then((value) => {
-            if (value === SHOW_PYLANCE)
-                vscode.commands.executeCommand("extension.open", PYLANCE_EXTENSION_ID);
-        });
-
-        return false;
+    for (const ext of extensions_info) {
+        const extension = vscode.extensions.getExtension(ext.extensionId);
+        if (extension) {
+            logger.info(`Found language server extension: ${ext.extensionId}.`);
+            return ext;
+        }
     }
 
-    return true;
+    logger.info(`No supported language server extension found.`);
+
+    vscode.window.showErrorMessage(
+        `No Python LSP extension found. Please install one or manually add the stubs path to your LSP extension configuration.`,
+        "Show Popular Python LSP Extensions"
+    ).then(async (value) => {
+        if (value === "Show Popular Python LSP Extensions") {
+            const result = await vscode.window.showQuickPick(extensions_info.map(ext => ({
+                label: ext.extensionName,
+                description: `by ${ext.publisherName}`,
+                extensionId: ext.extensionId
+            })), {
+                placeHolder: "Select an LSP extension to view in the marketplace"
+            });
+
+            if (result) {
+                vscode.commands.executeCommand("extension.open", result.extensionId);
+            }
+        }
+    });
+
+    return null;
 }
 
 /** 
@@ -95,7 +128,7 @@ function getSettingsInfo(extraPathsConfig: IInspectionSettings): ISettingsInfo {
             openSettingsCommand: "workbench.action.openWorkspaceSettings"
         }
     ];
-    
+
     // Search through the different scopes to find the first one that has a custom value
     for (const value of valuesToCheck) {
         if (value.paths && value.paths !== extraPathsConfig.defaultValue) {
@@ -114,71 +147,85 @@ function getSettingsInfo(extraPathsConfig: IInspectionSettings): ISettingsInfo {
 
 
 /**
- * Add a path to the `python.analysis.extraPaths` config. 
+ * Add a path to the `extraPaths` config. 
  * This function will also remove any current paths that ends w/ 'Intermediate/PythonStub' 
  * to prevent multiple Unreal stub directories beeing added
  * @param pathToAdd The path to add
- * @returns `true` if the path was added or already existed, `false` if the path could not be added
 */
-function addPythonAnalysisPath(pathToAdd: string): "add" | "exists" | false {
-    if (!validatePylanceExtension())
-        return false;
+function addPythonAnalysisPath(pathToAdd: string): void {
+    const lspExtInfo = getLanguageServerExtension();
+    if (!lspExtInfo)
+        return;
 
-    const extraPathsConfigName = `${CONFIG_PYTHON}.${CONFIG_KEY_EXTRA_PATHS}`;
+    if (lspExtInfo.extraPathsConfigKey) {
+        // Extension provides a config with a list of paths to scan for code completion, insert our path
+        const [lspSection, lspKey] = lspExtInfo.extraPathsConfigKey.split(/\.(.*)/s);
 
-    const pythonConfig = vscode.workspace.getConfiguration(CONFIG_PYTHON, utils.getActiveWorkspaceFolder()?.uri);
+        const pythonConfig = vscode.workspace.getConfiguration(lspSection, utils.getActiveWorkspaceFolder()?.uri);
 
-    let extraPathsConfig = pythonConfig.inspect<string[]>(CONFIG_KEY_EXTRA_PATHS);
-    if (!extraPathsConfig) {
-        logger.info(`Failed to get the config '${extraPathsConfigName}'`);
-        return false;
-    }
-
-    const settingsInfo = getSettingsInfo(extraPathsConfig);
-
-    // Create a new list that will contain the old paths and the new one
-    let newPathsValue = settingsInfo.paths ? [...settingsInfo.paths] : [];
-
-    // Check if the path already exists
-    if (newPathsValue.some(path => utils.isPathsSame(path, pathToAdd))) {
-        const message = `Path "${pathToAdd}" already exists in '${extraPathsConfigName}' in ${settingsInfo.niceName} settings.`;
-        logger.info(message);
-        vscode.window.showInformationMessage(message);
-        return "exists";
-    }
-
-    // Make sure we only have one Unreal stub directory in the extra paths
-    newPathsValue = newPathsValue.filter(path => !path.endsWith("Intermediate/PythonStub"));
-    newPathsValue.push(pathToAdd);
-
-    try {
-        pythonConfig.update(CONFIG_KEY_EXTRA_PATHS, newPathsValue, settingsInfo.scope);
-    }
-    catch (error) {
-        logger.showError(`Failed to update '${extraPathsConfigName}' in ${settingsInfo.niceName} settings.`, error as Error);
-        return false;
-    }
-
-    logger.info(`Added path "${pathToAdd}" to '${extraPathsConfigName}' in ${settingsInfo.niceName} settings.`);
-
-    vscode.window.showInformationMessage(`Updated '${extraPathsConfigName}' in ${settingsInfo.niceName} settings.`, "Show Setting").then(
-        (value) => {
-            if (value === "Show Setting") {
-                vscode.commands.executeCommand(settingsInfo.openSettingsCommand, extraPathsConfigName);
-            }
+        let extraPathsConfig = pythonConfig.inspect<string[]>(lspKey);
+        if (!extraPathsConfig) {
+            logger.info(`Failed to get the config '${lspExtInfo.extraPathsConfigKey}'`);
+            return;
         }
-    );
 
-    return "add";
+        const settingsInfo = getSettingsInfo(extraPathsConfig);
+
+        // Create a new list that will contain the old paths and the new one
+        let newPathsValue = settingsInfo.paths ? [...settingsInfo.paths] : [];
+
+        // Check if the path already exists
+        if (newPathsValue.some(path => utils.isPathsSame(path, pathToAdd))) {
+            const message = `Path "${pathToAdd}" already exists in '${lspExtInfo.extraPathsConfigKey}' in ${settingsInfo.niceName} settings.`;
+            logger.info(message);
+            vscode.window.showInformationMessage(message);
+        }
+
+        // Make sure we only have one Unreal stub directory in the extra paths
+        newPathsValue = newPathsValue.filter(path => !path.endsWith("Intermediate/PythonStub"));
+        newPathsValue.push(pathToAdd);
+
+        try {
+            pythonConfig.update(lspKey, newPathsValue, settingsInfo.scope);
+        }
+        catch (error) {
+            logger.showError(`Failed to update '${lspExtInfo.extraPathsConfigKey}' in ${settingsInfo.niceName} settings.`, error as Error);
+            return;
+        }
+
+        logger.info(`Added path "${pathToAdd}" to '${lspExtInfo.extraPathsConfigKey}' in ${settingsInfo.niceName} settings.`);
+
+        vscode.window.showInformationMessage(`Updated '${lspExtInfo.extraPathsConfigKey}' in ${settingsInfo.niceName} settings.`, "Show Setting").then(
+            (value) => {
+                if (value === "Show Setting") {
+                    vscode.commands.executeCommand(settingsInfo.openSettingsCommand, lspExtInfo.extraPathsConfigKey);
+                }
+            }
+        );
+    }
+
+    else {
+        if (lspExtInfo.extensionId === "astral-sh.ty") {
+            logger.info(`Cannot automatically configure "${lspExtInfo.extensionName}", please add the path "${pathToAdd}" to your configuration file manually.`);
+
+            vscode.window.showWarningMessage(
+                `Cannot automatically configure "${lspExtInfo.extensionName}", please add this path manually: "${pathToAdd}"`, "View Setup Guide"
+            ).then((value) => {
+                if (value === "View Setup Guide") {
+                    extensionWiki.openPageInBrowser(extensionWiki.FPages.configureTyCodeCompletion);
+                }
+            });
+        }
+    }
 }
 
 
 /**
- * Validate that a 'unreal.py' stub file exists in given directory, and if so add it to the `python.analysis.extraPaths` config.
- * If a valid stub file doesn't exist, user will be prompted to enable developer mode and the path will NOT be added to the python config.
+ * Validate that a 'unreal.py' stub file exists in given directory, and if so add it to the `extraPaths` config.
+ * If a valid stub file doesn't exist, user will be prompted to enable developer mode and the path will NOT be added to the config.
  * @param stubDirectoryPath The directory where the 'unreal.py' stub file is located
  */
-export async function validateStubAndAddToPath(stubDirectoryPath: vscode.Uri): Promise<false | "add" | "exists"> {
+export async function validateStubAndAddToPath(stubDirectoryPath: vscode.Uri): Promise<void> {
     // Check if a generated stub file exists
     const stubFilepath = vscode.Uri.joinPath(stubDirectoryPath, STUB_FILE_NAME);
 
@@ -193,10 +240,10 @@ export async function validateStubAndAddToPath(stubDirectoryPath: vscode.Uri): P
                 extensionWiki.openPageInBrowser(extensionWiki.FPages.enableDevmode);
         });
 
-        return false;
+        return;
     }
 
-    return addPythonAnalysisPath(stubDirectoryPath.fsPath);
+    addPythonAnalysisPath(stubDirectoryPath.fsPath);
 }
 
 

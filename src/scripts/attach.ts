@@ -36,8 +36,7 @@ interface IAttachConfiguration {
 export async function isDebugpyInstalled(): Promise<boolean> {
     logger.info("Checking if debugpy is installed...");
 
-    const attachScript = utils.FPythonScriptFiles.getUri(utils.FPythonScriptFiles.attach);
-    const response = await remoteHandler.evaluateFunction(attachScript, "is_debugpy_installed");
+    const response = await remoteHandler.evaluateFunction("debug", "is_debugpy_installed");
     if (response && response.success)
         return response.result === "True";
 
@@ -51,8 +50,7 @@ export async function isDebugpyInstalled(): Promise<boolean> {
 export async function getCurrentDebugpyPort(): Promise<number | null> {
     logger.info("Checking if debugpy is currently running...");
 
-    const attachScript = utils.FPythonScriptFiles.getUri(utils.FPythonScriptFiles.attach);
-    const response = await remoteHandler.evaluateFunction(attachScript, "get_current_debugpy_port");
+    const response = await remoteHandler.evaluateFunction("debug", "get_current_debugpy_port");
     if (response && response.success) {
         const port = Number(response.result);
         if (port > 0) {
@@ -73,8 +71,7 @@ export async function getCurrentDebugpyPort(): Promise<number | null> {
 export async function installDebugpy(): Promise<boolean> {
     logger.info("Installing debugpy...");
 
-    const installDebugpyScript = utils.FPythonScriptFiles.getUri(utils.FPythonScriptFiles.attach);
-    const response = await remoteHandler.evaluateFunction(installDebugpyScript, "install_debugpy");
+    const response = await remoteHandler.evaluateFunction("debug", "install_debugpy");
     if (response) {
         if (response.success && response.result === "True")
             return true;
@@ -96,8 +93,7 @@ export async function installDebugpy(): Promise<boolean> {
 async function startDebugpyServer(port: number): Promise<boolean> {
     logger.info(`Starting debugpy server on port ${port}`);
 
-    const startDebugServerScript = utils.FPythonScriptFiles.getUri(utils.FPythonScriptFiles.attach);
-    const response = await remoteHandler.evaluateFunction(startDebugServerScript, "start_debugpy_server", { port });
+    const response = await remoteHandler.evaluateFunction("debug", "start_debugpy_server", { port });
     if (response && response.success) {
         return response.result === "True";
     }

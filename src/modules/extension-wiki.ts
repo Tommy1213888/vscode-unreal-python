@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 
-export const WIKI_URL = "https://github.com/nils-soderman/vscode-unreal-python/wiki/";
+export const WIKI_URL = "https://codeberg.org/nils-soderman/vscode-unreal-python/wiki/";
 
 
 /**
@@ -8,8 +8,9 @@ export const WIKI_URL = "https://github.com/nils-soderman/vscode-unreal-python/w
  * All values are static
  */
 export class FPages {
-    static readonly failedToConnect = "Failed-to-connect-to-Unreal-Engine-%5BTroubleshooting%5D";
-    static readonly enableDevmode = "How-to-enable-Developer-Mode-for-Python-in-Unreal-Engine";
+    static readonly failedToConnect = "Failed-to-connect-to-Unreal-Engine";
+    static readonly enableDevmode = "Unreal-Engine-Developer-Mode";
+    static readonly configureTyCodeCompletion = "Setup-code-completion-for-ty";
 }
 
 

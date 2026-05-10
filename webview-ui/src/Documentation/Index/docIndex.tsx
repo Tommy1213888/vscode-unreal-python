@@ -11,6 +11,7 @@ import DynamicList from "../../Components/DynamicList/dynamicList";
 interface RawTableOfContents {
     [type: string]: {
         [name: string]: {
+            [subType: string]: string[] | undefined;
             ClassMethod?: string[],
             Constant?: string[],
             Method?: string[],
@@ -44,9 +45,9 @@ interface DocIndexProps {
 
 
 export default class DocIndex extends Component<DocIndexProps> {
-    state = { bLoading: true, tableOfContents: {}, filter: "" };
+    state: { bLoading: boolean, tableOfContents: TableOfContents, filter: string } = { bLoading: true, tableOfContents: {}, filter: "" };
 
-    contentRef: React.RefObject<HTMLDivElement>;
+    contentRef: React.RefObject<HTMLDivElement | null>;
     numberOfDDAUpdates = 0;
     maxListItems: { [id: string]: number } = {};
 
@@ -79,8 +80,10 @@ export default class DocIndex extends Component<DocIndexProps> {
         }
         this.numberOfDDAUpdates++;
 
-        this.contentRef.current.scrollTo(0, this.props.scrollPosY);
-        this.contentRef.current.scrollTop = this.props.scrollPosY;
+        if (this.contentRef.current !== null) {
+            this.contentRef.current.scrollTo(0, this.props.scrollPosY);
+            this.contentRef.current.scrollTop = this.props.scrollPosY;
+        }
     }
 
     parseTableOfContents(tableOfContents: RawTableOfContents) {
@@ -93,7 +96,7 @@ export default class DocIndex extends Component<DocIndexProps> {
                 parsedTableOfContents[type][name] = [];
 
                 Object.keys(tableOfContents[type][name]).forEach((subType) => {
-                    parsedTableOfContents[type][name].push(...tableOfContents[type][name][subType]);
+                    parsedTableOfContents[type][name].push(...(tableOfContents[type][name][subType] ?? []));
                 });
             });
         });
@@ -123,7 +126,7 @@ export default class DocIndex extends Component<DocIndexProps> {
         vscode.sendMessage(vscode.EOutCommands.storeMaxListItems, { id, value: maxItems });
     }
 
-    private passesFilter(itemName: string, includes: string[], alternativeIncludes?: string[]) {
+    private passesFilter(itemName: string, includes: string[], alternativeIncludes?: string[]): boolean {
         for (let include of includes) {
             if (!itemName.includes(include)) {
                 if (alternativeIncludes)

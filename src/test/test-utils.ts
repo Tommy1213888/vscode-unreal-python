@@ -5,7 +5,7 @@ import * as utils from '../modules/utils';
 /* eslint-disable @typescript-eslint/naming-convention */
 export const CONNECTION_CONFIG = {
     "remote.multicastGroupEndpoint": "239.0.0.1:6766",
-    "remote.multicastBindAddress": "127.0.0.1",
+    "remote.multicastBindAddress": "default",
     "remote.multicastTTL": 0,
     "remote.commandEndpoint": "127.0.0.1:6776"
 };

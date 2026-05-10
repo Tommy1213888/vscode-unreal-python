@@ -2,7 +2,6 @@ import * as vscode from 'vscode';
 
 import * as remoteHandler from '../modules/remote-handler';
 import * as logger from '../modules/logger';
-import * as utils from '../modules/utils';
 
 
 interface IReloadResponse {
@@ -18,8 +17,7 @@ export async function reload() {
 
     const workspaceFolders = vscode.workspace.workspaceFolders?.map(folder => folder.uri.fsPath) || [];
 
-    const attachScript = utils.FPythonScriptFiles.getUri(utils.FPythonScriptFiles.reload);
-    const response = await remoteHandler.evaluateFunction(attachScript, "reload",
+    const response = await remoteHandler.evaluateFunction("reload", "reload",
         {
             "workspace_folders": workspaceFolders,
         }
@@ -52,7 +50,7 @@ export async function reload() {
             statusBarItem.dispose();
             isCommandRegistered = false;
         }, 5000);
-        
+
         const commandDisposable = vscode.commands.registerCommand(statusBarItem.command, () => {
             logger.getOutputChannel().show();
             commandDisposable.dispose();

@@ -121,9 +121,8 @@ export async function main() {
     const bIsDebugging = projectName !== undefined && utils.isDebuggingUnreal(projectName);
     const nameVar = extensionConfig.get<string>("execute.name");
 
-    const execFile = utils.FPythonScriptFiles.getUri(utils.FPythonScriptFiles.execute);
     const response = await remoteHandler.evaluateFunction(
-        execFile,
+        "execute",
         "main",
         {
             exec_file: fileToExecute.fsPath,
@@ -131,7 +130,6 @@ export async function main() {
             is_debugging: bIsDebugging,
             name_var: nameVar
         },
-        true,
         false
     );
 

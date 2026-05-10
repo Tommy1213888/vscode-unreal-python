@@ -3,7 +3,7 @@
   "displayName": "Unreal Engine Python",
   "publisher": "NilsSoderman",
   "description": "Tools to assist when writing Python code for Unreal Engine",
-  "version": "1.9.0",
+  "version": "1.10.0",
   "categories": [
     "Other",
     "Debuggers"
@@ -14,7 +14,6 @@
     "engine",
     "game",
     "epic games",
-    "debug",
     "ue5",
     "ue4"
   ],
@@ -29,7 +28,7 @@
       },
       {
         "category": "Unreal Python",
-        "title": "Attach",
+        "title": "Attach Debugger",
         "command": "ue-python.attach"
       },
       {
@@ -92,7 +91,7 @@
             "scope": "resource"
           },
           "ue-python.attach.type": {
-            "type":"string",
+            "type": "string",
             "enum": [
               "debugpy",
               "python"
@@ -145,11 +144,11 @@
           },
           "ue-python.remote.multicastBindAddress": {
             "type": "string",
-            "default": "127.0.0.1",
-            "markdownDescription": "The adapter address that the UDP multicast socket should bind to, or 0.0.0.0 to bind to all adapters _(must match the \"Multicast Bind Address\" setting in the Python plugin)_",
+            "default": "default",
+            "markdownDescription": "The adapter address that the UDP multicast socket should bind to, or `0.0.0.0` to bind to all adapters _(must match the \"Multicast Bind Address\" setting in the Python plugin)_.\n_`\"default\"`_ converts to `127.0.0.7` on Windows and `0.0.0.0` on Linux.",
             "scope": "resource",
             "order": 1,
-            "pattern": "^[0-9.]+$"
+            "pattern": "^(default|[0-9.]+)$"
           },
           "ue-python.remote.multicastTTL": {
             "type": "number",
@@ -192,10 +191,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/nils-soderman/vscode-unreal-python"
+    "url": "https://codeberg.org/nils-soderman/vscode-unreal-python"
   },
   "bugs": {
-    "url": "https://github.com/nils-soderman/vscode-unreal-python/issues"
+    "url": "https://codeberg.org/nils-soderman/vscode-unreal-python/issues"
   },
   "author": {
     "name": "Nils Söderman",
@@ -212,30 +211,30 @@
     "esbuild": "npm run esbuild-base -- --sourcemap",
     "watch": "npm run esbuild-base -- --sourcemap --watch",
     "lint": "eslint src --ext ts",
-    "test": "tsc -p ./ && vscode-test",
+    "test": "node test/check-multicast.mjs && tsc -p ./ && vscode-test",
     "watch-test": "tsc -p ./ --watch"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",
-    "@types/node": "20.x",
-    "@types/sinon": "^17.0.4",
+    "@types/node": "24.x",
+    "@types/sinon": "^21.0.1",
     "@types/tcp-port-used": "^1.0.4",
-    "@types/vscode": "^1.91.0",
-    "@typescript-eslint/eslint-plugin": "^8.31.1",
-    "@typescript-eslint/parser": "^8.31.1",
-    "@vscode/test-cli": "^0.0.11",
+    "@types/vscode": "^1.118.0",
+    "@typescript-eslint/eslint-plugin": "^8.59.2",
+    "@typescript-eslint/parser": "^8.59.2",
+    "@vscode/test-cli": "^0.0.12",
     "@vscode/test-electron": "^2.5.2",
-    "esbuild": "^0.25.3",
-    "eslint": "^9.26.0",
-    "mocha": "^11.2.2",
-    "sinon": "^21.0.0",
-    "typescript": "^5.8.3"
+    "esbuild": "^0.28.0",
+    "eslint": "^10.3.0",
+    "mocha": "^11.7.5",
+    "sinon": "^22.0.0",
+    "typescript": "^6.0.3"
   },
   "dependencies": {
     "tcp-port-used": "^1.0.2",
-    "unreal-remote-execution": "^1.0.0"
+    "unreal-remote-execution": "^1.1.0"
   },
   "engines": {
-    "vscode": "^1.91.0"
+    "vscode": "^1.118.0"
   }
 }

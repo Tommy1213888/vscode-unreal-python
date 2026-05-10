@@ -32,27 +32,6 @@ export function getExtensionUri(): vscode.Uri {
 }
 
 
-/**
- * Struct containing all available python script's provided by this extension.  
- * All variables & methods are static, this class should not be instantiated.
- */
-export class FPythonScriptFiles {
-    static readonly buildDocumentationToC = "documentation/build_toc";
-    static readonly getDocPageContent = "documentation/get_page_content";
-    static readonly getStubPath = "get_stub_path";
-    static readonly addSysPath = "add_sys_path";
-    static readonly attach = "attach";
-    static readonly execute = "execute";
-    static readonly reload = "reload";
-    static readonly eval = "vsc_eval";
-
-    /** Get the absolute path to one of the scripts defined in this struct */
-    static getUri(file: string): vscode.Uri {
-        return vscode.Uri.joinPath(getExtensionUri(), "python", `${file}.py`);
-    }
-}
-
-
 // -----------------------------------------------------------------------------------------
 //                                  VS Code Utils
 // -----------------------------------------------------------------------------------------

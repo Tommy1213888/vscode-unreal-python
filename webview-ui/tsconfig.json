@@ -1,6 +1,9 @@
 // tsconfig.json
 {
-    "compilerOptions": {
-      "jsx": "react-jsx"
-    },
-  }
+  "compilerOptions": {
+    "jsx": "react-jsx"
+  },
+  "include": [
+    "src/**/*"
+  ]
+}

@@ -59,9 +59,7 @@ export async function openDocumentationWindow(extensionUri: vscode.Uri, globalSt
  * @returns The table of contents as a JSON object
  */
 async function getTableOfContents() {
-    const getTableOfContentScript = utils.FPythonScriptFiles.getUri(utils.FPythonScriptFiles.buildDocumentationToC);
-
-    const response = await remoteHandler.evaluateFunction(getTableOfContentScript, "get_table_of_content_json");
+    const response = await remoteHandler.evaluateFunction("documentation.build_toc", "get_table_of_content_json");
     if (response && response.success) {
         // As the result is stringified JSON, remove the quotes and parse it
         const result = response.result.replace(/^'|'$/g, '');
@@ -82,13 +80,11 @@ async function getTableOfContents() {
  *  
  */
 async function getPageContent(module: string) {
-    const getDocPageContentScirpt = utils.FPythonScriptFiles.getUri(utils.FPythonScriptFiles.getDocPageContent);
-
     const kwargs = {
         "object_name": module
     };
 
-    const response = await remoteHandler.evaluateFunction(getDocPageContentScirpt, "get_object_documentation_json", kwargs);
+    const response = await remoteHandler.evaluateFunction("documentation.get_page_content", "get_object_documentation_json", kwargs);
     if (response && response.success) {
         // As the result is stringified JSON, make it parsable
         const result = response.result.replace(/^'|'$/g, '').replace(/\\'/g, '\'').replace(/\\\\/g, '\\');
