@@ -1,5 +1,15 @@
 # Change Log
 
+## [1.10.0] - 2026-05-10
+
+> The repository has been moved to Codeberg: https://codeberg.org/nils-soderman/vscode-unreal-python/
+
+- Improved Linux support
+- Add support for [BasedPyright](https://marketplace.visualstudio.com/items?itemName=detachhead.basedpyright) & [ty](https://marketplace.visualstudio.com/items?itemName=astral-sh.ty) when setting up code completion
+- Renamed command `Unreal Python: Attach` to `Unreal Python: Attach Debugger`
+- Reduced redundant file reads and code parsing when executing scripts
+
+
 ## [1.9.0] - 2025-08-04
 
 - Added setting `ue-python.attach.type` to allow the deprecated 'python' config type to be used _(defaults to 'debugpy')_. This setting will be removed when 'python' is removed from the `ms-python.python` extension.
